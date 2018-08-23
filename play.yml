@@ -1,0 +1,12 @@
+---
+#
+# Playbook to install the ELK stack + Beats
+#
+- hosts: localhost
+  become: yes
+  gather_facts: yes
+
+  roles:
+#  - { role: java }
+   - { role: android }
+#  - { role: apm-server }

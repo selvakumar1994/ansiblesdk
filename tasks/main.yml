@@ -1,0 +1,54 @@
+---
+# tasks file for android
+- name: Run specified tasks on current platform
+  include: "{{ ansible_os_family }}.yml"
+
+- name: Check whether adb command exists
+  stat: path="{{ android_home }}/platform-tools/adb"
+  register: stat_adb_command
+  changed_when: no
+- name: Check whether lock file for extra components exists
+  stat: path="{{ android_extra_components_lockpath }}"
+  register: stat_extra_components_lockpath
+  changed_when: no
+
+- block:
+  - name: Ensure a directory for licenses
+    file:
+      path: "{{ android_home }}/licenses"
+      state: 'directory'
+  - name: Copy license files
+    copy:
+      src: "{{ android_license_src_dir }}"
+      dest: "{{ android_home }}/licenses"
+    when: android_license_src_dir is defined
+  become: yes
+  when: (not stat_adb_command.stat.exists) or
+        ((android_extra_components|length != 0) and (not stat_extra_components_lockpath.stat.exists))
+
+- name: Check repositories.cfg
+  stat:
+    path: "{{ ansible_env.HOME }}/.android/repositories.cfg"
+  register: stat_repositories_cfg
+  changed_when: no
+- block:
+  - name: Create .android directory
+    file:
+      path: "{{ ansible_env.HOME }}/.android"
+      state: directory
+  - name: Create repositories.cfg
+    file:
+      path: "{{ ansible_env.HOME }}/.android/repositories.cfg"
+      state: touch
+  when: not stat_repositories_cfg.stat.exists
+- name: Install platform tool
+  command: "{{ android_home }}/tools/bin/sdkmanager platform-tools"
+  when: not stat_adb_command.stat.exists
+
+- block:
+  - name: Install extra components
+    command: "{{ android_home }}/tools/bin/sdkmanager {{ item }}"
+    with_items: "{{ android_extra_components }}"
+  - name: Create lock file for extra components
+    file: path="{{ android_extra_components_lockpath }}" state="touch"
+  when: (android_extra_components|length != 0) and (not stat_extra_components_lockpath.stat.exists)
